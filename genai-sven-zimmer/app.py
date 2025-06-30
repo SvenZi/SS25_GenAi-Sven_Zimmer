@@ -1,62 +1,134 @@
 import gradio as gr
+from agents import Runner
+from dotenv import load_dotenv
+import os
+import re
 import pandas as pd
-from datenbank_agent import DatenbankAgent
 
-# --- Unser "Motor" ---
-# Diese Funktion kapselt den Workflow, den wir testen wollen.
-# Später wird hier die Logik des ManagerAgenten stehen.
-def run_query_workflow(user_question: str):
+from sql_agent import create_sql_agent, create_response_agent
+from database_request import DatabaseRequest
+
+# Lädt Umgebungsvariablen
+load_dotenv()
+
+# --- SQL-Generierungs-Agent initialisieren ---
+sql_generator_agent = create_sql_agent()
+response_agent = create_response_agent()
+
+
+# --- Asynchrone Funktion für die Gradio-Schnittstelle (Der Orchestrator) ---
+async def generate_sql_and_pass_to_request(user_question: str) -> str:
     """
-    Führt einen vordefinierten Workflow aus, um Daten aus der Datenbank abzufragen.
-    Nimmt eine Benutzerfrage entgegen (wird derzeit aber noch ignoriert).
+    Nimmt die Nutzerfrage, lässt den Agenten die SQL-Abfrage generieren,
+    führt diese aus und lässt das Ergebnis von einem weiteren Agenten analysieren,
+    um eine Antwort in natürlicher Sprache zu erstellen.
     """
-    print(f"Workflow gestartet für die Frage: '{user_question}'")
+    if not os.getenv("OPENAI_API_KEY"):
+        return "FEHLER: OPENAI_API_KEY nicht gefunden in den Umgebungsvariablen."
+
+    print(f"\n--- Verarbeitung Ihrer Frage gestartet ---")
+    print(f"Benutzerfrage: '{user_question}'")
     
-    # 1. Definiere die SQL-Abfrage.
-    #    HINWEIS: Dies ist noch ein Platzhalter. Später wird ein KI-Agent
-    #    diese Abfrage basierend auf der 'user_question' generieren.
-    sql_query = "SELECT TOP 10 * FROM dbo.Dim_Product ORDER BY Product_Price_EUR DESC"
-
-    # 2. Erstelle eine Instanz unseres spezialisierten Agenten.
-    db_agent = DatenbankAgent()
-
-    # 3. Beauftrage den Agenten mit der Ausführung der Aufgabe.
-    print("Beauftrage den DatenbankAgent...")
-    ergebnis = db_agent.fuehre_abfrage_aus(sql_query)
-
-    # 4. Gib das Ergebnis zurück, damit Gradio es anzeigen kann.
-    if isinstance(ergebnis, pd.DataFrame):
-        return ergebnis
-    else:
-        # Im Fehlerfall geben wir einen leeren DataFrame mit einer Fehlermeldung zurück.
-        # Gradio kann DataFrames besser darstellen als reinen Text.
-        return pd.DataFrame({'Fehler': [str(ergebnis)]})
-
-
-# --- Die Gradio-Oberfläche ---
-# Hier bauen wir das "Armaturenbrett" für unseren Motor.
-with gr.Blocks(title="Produktleistungs-Agent") as demo:
-    gr.Markdown("# 🚀 Prototyp des Produktleistungs-Agenten")
-    gr.Markdown("Dies ist eine erste interaktive Oberfläche. Momentan wird die Eingabe ignoriert und immer die gleiche Abfrage für die 10 teuersten Produkte ausgeführt.")
-    
-    with gr.Row():
-        question_input = gr.Textbox(
-            label="Stelle deine Frage hier:",
-            placeholder="z.B. Zeige mir die teuersten Produkte.",
-            scale=4
+    # 1. SQL-Abfrage durch den Agenten generieren lassen
+    try:
+        sql_agent_response = await Runner.run( # Variable umbenannt
+            sql_generator_agent, 
+            user_question
         )
-        submit_button = gr.Button("Anfrage senden", variant="primary", scale=1)
+    except Exception as e:
+        print(f"FEHLER beim SQL-Agentenlauf: {str(e)}")
+        return f"FEHLER beim Generieren der SQL-Abfrage durch den Agenten: {str(e)}"
+    
+    # Extrahiere den SQL-Code aus den <sql>-Tags der Agentenantwort
+    sql_match = re.search(r'<sql>(.*?)</sql>', sql_agent_response.final_output, re.DOTALL)
+    
+    if not sql_match:
+        print(f"FEHLER: Agent konnte keinen gültigen SQL-Code im <sql>-Tag finden.")
+        print(f"Agentenantwort war:\n{sql_agent_response.final_output}")
+        return "FEHLER: Der Agent konnte keinen gültigen SQL-Code generieren."
+    
+    generated_sql = sql_match.group(1).strip()
+    print(f"\n### Generierter SQL-Code:\n```sql\n{generated_sql}\n```") # Zeige SQL auch in der Konsole
 
-    output_dataframe = gr.DataFrame(label="Ergebnis aus der Datenbank")
+    # 2. Den generierten SQL-Code an die DatabaseRequest-Funktion weitergeben
+    # NEU: Ergebnis von DatabaseRequest erfassen
+    db_result = DatabaseRequest(generated_sql)
+    
+    # 3. Ergebnis der Datenbankabfrage an den Antwort-Agenten übergeben
+    # Erstelle den Prompt für den Antwort-Agenten
+    # WICHTIG: DataFrame muss in einen String umgewandelt werden, damit der Agent ihn lesen kann.
+    if isinstance(db_result, pd.DataFrame):
+        db_result_str = db_result.to_string() # Konvertiert DataFrame zu String
+    else:
+        db_result_str = str(db_result) # Wenn es ein Fehler-String ist, einfach konvertieren
 
-    submit_button.click(
-        fn=run_query_workflow,
-        inputs=question_input,
-        outputs=output_dataframe
+    response_agent_prompt = f"""
+<original_frage>
+{user_question}
+</original_frage>
+<datenbank_ergebnis>
+{db_result_str}
+</datenbank_ergebnis>
+"""
+    print(f"\n--- Übergabe an Antwort-Agenten ---")
+    print(f"Prompt für Antwort-Agenten:\n{response_agent_prompt}")
+
+    try:
+        final_response_agent_output = await Runner.run(
+            response_agent,
+            response_agent_prompt
+        )
+    except Exception as e:
+        print(f"FEHLER beim Antwort-Agentenlauf: {str(e)}")
+        return f"FEHLER beim Generieren der Antwort durch den Agenten: {str(e)}"
+
+    # Extrahiere die finale Antwort aus den <antwort>-Tags
+    response_match = re.search(r'<antwort>(.*?)</antwort>', final_response_agent_output.final_output, re.DOTALL)
+
+    if not response_match:
+        print(f"FEHLER: Antwort-Agent konnte keine gültige Antwort im <antwort>-Tag finden.")
+        print(f"Antwort-Agenten-Output war:\n{final_response_agent_output.final_output}")
+        return "FEHLER: Der Antwort-Agent konnte keine gültige Antwort generieren."
+
+    final_answer = response_match.group(1).strip()
+    print(f"\n--- Finale Antwort des Agenten ---")
+    print(final_answer)
+
+    # Rückgabe der finalen Antwort für das Gradio-UI
+    return final_answer
+
+with gr.Blocks(theme=gr.themes.Soft()) as demo:
+    gr.Markdown(
+        """
+        # AdventureBikes SQL-Generator & Daten-Analyst
+        Stellen Sie eine Frage in natürlicher Sprache. Der Assistent generiert die passende SQL-Abfrage,
+        führt diese aus und analysiert das Ergebnis, um eine Antwort zu erstellen.
+        Die generierte SQL-Abfrage und detaillierte Debug-Informationen werden in der Konsole ausgegeben.
+        """
+    )
+    
+    question_input = gr.Textbox(
+        label="Ihre Frage an den Daten-Analysten", 
+        placeholder="z.B. Zeige mir den Umsatz für 'Mountain Bikes' im letzten Jahr.",
+        lines=3
+    )
+    
+    submit_button = gr.Button("Antwort generieren", variant="primary")
+    
+    
+    final_answer_display = gr.Textbox(
+        label="Antwort des Daten-Analysten", 
+        lines=10,
+        interactive=False,
+        show_copy_button=True
     )
 
-# --- Start der Anwendung ---
+    submit_button.click(
+        fn=generate_sql_and_pass_to_request,
+        inputs=question_input,
+        outputs=final_answer_display
+    )
+
+# Startet die Web-Anwendung
 if __name__ == "__main__":
-    print("Starte die Gradio-Oberfläche...")
-    print("Du kannst sie im Browser unter der angezeigten URL öffnen.")
     demo.launch()
