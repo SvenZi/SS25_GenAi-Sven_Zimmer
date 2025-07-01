@@ -102,7 +102,7 @@ with gr.Blocks(
 
     gr.Markdown(
             """
-            > - Beispiel: "Erlöse von jedem Monat von 2021 bis Februar 2022."
+            > - Beispiel: "Erlöse von September bis Dezember 2021 pro Monat."
             > - Beispiel: "Wie oft haben wir im Januar 2021 City Bikes verkauft?"
             """
         )
