@@ -96,39 +96,89 @@ async def generate_sql_and_pass_to_request(user_question: str) -> tuple[str, str
 
 # ----------------------- Gradio Interface -----------------------
 
-with gr.Blocks(theme=gr.themes.Soft(), title="AdventureBikes Analyst") as demo:
-    gr.Markdown(
-        """
-        # AdventureBikes SQL-Generator und Daten-Analyst
-        Stellen Sie Ihre Frage per Text oder Sprache. Der Assistent generiert die passende SQL-Abfrage und liefert das Ergebnis.
-        *Anfragendauer: ca. 10-20s*
-        """
-    )
-
-    # --- Die Ausgabespalte (anfangs versteckt) ---
-    with gr.Column(visible=False) as output_column:
-        user_question_display = gr.Textbox(label="Ihre gestellte Frage", interactive=False, lines=2)
-        sql_code_display = gr.Code(label="Generierter SQL-Code", language="sql", interactive=False, lines=8)
-
-    # --- Finale Antwort (immer sichtbar) ---
-    final_answer_display = gr.Textbox(label="Analyse des Daten-Analysten", lines=8, interactive=False, show_copy_button=True)
-
-    # --- Die vereinheitlichte Eingabezeile am Ende ---
-    with gr.Row():
-        # Das Audio-Widget nimmt die Aufnahme entgegen
-        audio_input = gr.Audio(sources=["microphone"], type="filepath", label="Aufnahme 🎙️", elem_id="audio-recorder")
-        
-        # Das zentrale Textfeld für die Eingabe und Bearbeitung
-        question_input = gr.Textbox(
-            placeholder="Frage hier eingeben oder per Mikrofon aufnehmen...",
-            show_label=False,
-            lines=1,
-            scale=5, # Macht das Textfeld breiter
-            elem_id="text-input-box"
+with gr.Blocks(
+    theme=gr.themes.Soft(),
+    title="AdventureBikes Business Intelligence",
+    css=".container { max-width: 1000px; margin: auto; padding: 20px; }"
+) as demo:
+    # Header-Bereich mit Logo und Titel
+    with gr.Row(elem_classes="header"):
+        gr.Markdown(
+            """
+            # 🚲 AdventureBikes Analytics
+            ### Ihr KI-gestützter Business Intelligence Assistent
+            """
         )
+    
+    # Info-Box
+    with gr.Row():
+        gr.Markdown(
+            """
+            > **Tipp:** Stellen Sie Ihre Fragen in natürlicher Sprache. Der Assistent kümmert sich um die SQL-Generierung.
+            > - Beispiel: "Wie war der Umsatz von Mountain Bikes in Deutschland im letzten Monat?"
+            > - Beispiel: "Zeige mir die Top 5 Verkaufsländer für City Bikes in 2024."
+            """
+        )
+
+    # Haupteingabebereich
+    with gr.Row(equal_height=True):
+        with gr.Column(scale=6):
+            question_input = gr.Textbox(
+                placeholder="Ihre Frage zur Geschäftsanalyse hier eingeben...",
+                label="Frage",
+                lines=2,
+                elem_id="text-input-box"
+            )
+        with gr.Column(scale=1, min_width=100):
+            audio_input = gr.Audio(
+                sources=["microphone"],
+                type="filepath",
+                label="🎙️ Spracheingabe",
+                elem_id="audio-recorder"
+            )
+    
+    # Senden-Button zentriert
+    with gr.Row(elem_classes="center"):
+        submit_button = gr.Button(
+            "🔍 Analyse starten",
+            variant="primary",
+            size="lg"
+        )
+
+    # Ausgabebereich
+    with gr.Tabs():
+        # Tab 1: Hauptergebnis
+        with gr.Tab("📊 Analyse"):
+            with gr.Column():
+                final_answer_display = gr.Textbox(
+                    label="Ergebnis der Analyse",
+                    lines=4,
+                    interactive=False,
+                    show_copy_button=True,
+                    elem_classes="result-box"
+                )
         
-        # Der finale Senden-Button
-        submit_button = gr.Button("Analysieren", variant="primary", scale=1)
+        # Tab 2: Technische Details (anfangs versteckt)
+        with gr.Tab("🔧 Technische Details"):
+            with gr.Column(visible=False) as output_column:
+                user_question_display = gr.Textbox(
+                    label="Verarbeitete Anfrage",
+                    interactive=False,
+                    lines=2
+                )
+                sql_code_display = gr.Code(
+                    label="Generierter SQL-Code",
+                    language="sql",
+                    interactive=False,
+                    lines=8
+                )
+    
+    # Footer mit Verarbeitungsinfo
+    with gr.Row():
+        gr.Markdown(
+            "*⏱️ Die Verarbeitung dauert typischerweise 10-20 Sekunden.*",
+            elem_classes="footer"
+        )
 
     # --- EVENT-HANDLER ---
     
