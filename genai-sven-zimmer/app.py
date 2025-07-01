@@ -1,11 +1,11 @@
 import gradio as gr
 from agents import Runner
 from dotenv import load_dotenv
-import os
-import re
 import pandas as pd
+import os
 
-from sql_agent import create_sql_agent, create_response_agent
+from sql_agent import create_sql_agent
+from interpreter_agent import create_interpreter_agent
 from database_request import DatabaseRequest
 
 # Lädt Umgebungsvariablen
@@ -13,56 +13,53 @@ load_dotenv()
 
 # --- SQL-Generierungs-Agent initialisieren ---
 sql_generator_agent = create_sql_agent()
-response_agent = create_response_agent()
+interpreter_agent = create_interpreter_agent()
 
 
-# --- Asynchrone Funktion für die Gradio-Schnittstelle (Der Orchestrator) ---
 async def generate_sql_and_pass_to_request(user_question: str) -> str:
-    """
-    Nimmt die Nutzerfrage, lässt den Agenten die SQL-Abfrage generieren,
-    führt diese aus und lässt das Ergebnis von einem weiteren Agenten analysieren,
-    um eine Antwort in natürlicher Sprache zu erstellen.
-    """
     if not os.getenv("OPENAI_API_KEY"):
-        return "FEHLER: OPENAI_API_KEY nicht gefunden in den Umgebungsvariablen."
+        return "FEHLER: OPENAI_API_KEY nicht gefunden in den Umgebungsvariablen. (.env)"
 
     print(f"\n--- Verarbeitung Ihrer Frage gestartet ---")
     print(f"Benutzerfrage: '{user_question}'")
     
-    # 1. SQL-Abfrage durch den Agenten generieren lassen
     try:
-        sql_agent_response = await Runner.run( # Variable umbenannt
+        generated_sql_output = await Runner.run( 
             sql_generator_agent, 
             user_question
-        )
+        ) # Out: SQL-Query (Modell: gpt-4o-mini)
+        generated_sql = generated_sql_output.final_output.strip()
+
+# !! __________ Zugriffsberechtigung für den Agenten bestimmen!
+        if not generated_sql.upper().startswith(("SELECT")): # Nur Leseberechtigung
+        #if not generated_sql.upper().startswith(("SELECT", "INSERT", "CREATE",)): # Keine erlaubnis zum Löschen oder Verändern | Einfügen erlaubt!            
+# !! __________
+
+
+#Error-Handling: Prüfen, ob der Agent eine Fehlermeldung generiert ha
+            if "FEHLER:" in generated_sql.upper() or "ERROR:" in generated_sql.upper():
+                 print(f"FEHLER: Agent hat eine Fehlermeldung statt SQL generiert.")
+                 print(f"Agenten-Output war:\n{generated_sql_output.final_output}")
+                 return f"FEHLER: Der Agent hat einen internen Fehler gemeldet: {generated_sql_output.final_output}"
+            else:
+                print(f"FEHLER: Agent konnte keinen gültigen SQL-Code generieren.")
+                print(f"Agenten-Output war:\n{generated_sql_output.final_output}")
+                return "FEHLER: Der Agent konnte keinen gültigen SQL-Code generieren."
     except Exception as e:
         print(f"FEHLER beim SQL-Agentenlauf: {str(e)}")
         return f"FEHLER beim Generieren der SQL-Abfrage durch den Agenten: {str(e)}"
-    
-    sql_match = re.search(r'<sql>(.*?)</sql>', sql_agent_response.final_output, re.DOTALL)
-    
-# Fehlerbehandlung: Wenn kein gültiger SQL-Code gefunden wurde
-    if not sql_match:
-        print(f"FEHLER: Agent konnte keinen gültigen SQL-Code im <sql>-Tag finden.")
-        print(f"Agentenantwort war:\n{sql_agent_response.final_output}")
-        return "FEHLER: Der Agent konnte keinen gültigen SQL-Code generieren."
-#-------
+#-------------------------
 
-    generated_sql = sql_match.group(1).strip()
-    print(f"\n### Generierter SQL-Code:\n```sql\n{generated_sql}\n```") # Zeige SQL auch in der Konsole
+    print(f"\n### Generierter SQL-Code:\n```sql\n{generated_sql}\n```")
 
-    # 2. Den generierten SQL-Code an die DatabaseRequest-Funktion weitergeben
     db_result = DatabaseRequest(generated_sql)
     
-    # 3. Ergebnis der Datenbankabfrage an den Antwort-Agenten übergeben
-    # Erstelle den Prompt für den Antwort-Agenten
-    # WICHTIG: DataFrame muss in einen String umgewandelt werden, damit der Agent ihn lesen kann.
     if isinstance(db_result, pd.DataFrame):
-        db_result_str = db_result.to_string() # Konvertiert DataFrame zu String
+        db_result_str = db_result.to_csv(index=False) 
     else:
         db_result_str = str(db_result) # Wenn es ein Fehler-String ist, einfach konvertieren
 
-    response_agent_prompt = f"""
+    interpreter_agent_inputprompt = f"""
 <original_frage>
 {user_question}
 </original_frage>
@@ -71,23 +68,23 @@ async def generate_sql_and_pass_to_request(user_question: str) -> str:
 </datenbank_ergebnis>
 """
     print(f"\n--- Übergabe an Antwort-Agenten ---")
-    print(f"Prompt für Antwort-Agenten:\n{response_agent_prompt}")
+    print(f"Prompt für Antwort-Agenten:\n{interpreter_agent_inputprompt}")
 
     try:
-        final_response_agent_output = await Runner.run(
-            response_agent,
-            response_agent_prompt
+        interpreter_agent_output = await Runner.run(
+            interpreter_agent,
+            interpreter_agent_inputprompt
         )
     except Exception as e:
         print(f"FEHLER beim Antwort-Agentenlauf: {str(e)}")
         return f"FEHLER beim Generieren der Antwort durch den Agenten: {str(e)}"
 
     # Extrahiere die finale Antwort aus den <antwort>-Tags
-    response_match = re.search(r'<antwort>(.*?)</antwort>', final_response_agent_output.final_output, re.DOTALL)
+    response_match = re.search(r'<antwort>(.*?)</antwort>', interpreter_agent_output.final_output, re.DOTALL)
 
     if not response_match:
         print(f"FEHLER: Antwort-Agent konnte keine gültige Antwort im <antwort>-Tag finden.")
-        print(f"Antwort-Agenten-Output war:\n{final_response_agent_output.final_output}")
+        print(f"Antwort-Agenten-Output war:\n{interpreter_agent_output.final_output}")
         return "FEHLER: Der Antwort-Agent konnte keine gültige Antwort generieren."
 
     final_answer = response_match.group(1).strip()
