@@ -39,19 +39,19 @@ async def generate_sql_and_pass_to_request(user_question: str) -> str:
         print(f"FEHLER beim SQL-Agentenlauf: {str(e)}")
         return f"FEHLER beim Generieren der SQL-Abfrage durch den Agenten: {str(e)}"
     
-    # Extrahiere den SQL-Code aus den <sql>-Tags der Agentenantwort
     sql_match = re.search(r'<sql>(.*?)</sql>', sql_agent_response.final_output, re.DOTALL)
     
+# Fehlerbehandlung: Wenn kein gültiger SQL-Code gefunden wurde
     if not sql_match:
         print(f"FEHLER: Agent konnte keinen gültigen SQL-Code im <sql>-Tag finden.")
         print(f"Agentenantwort war:\n{sql_agent_response.final_output}")
         return "FEHLER: Der Agent konnte keinen gültigen SQL-Code generieren."
-    
+#-------
+
     generated_sql = sql_match.group(1).strip()
     print(f"\n### Generierter SQL-Code:\n```sql\n{generated_sql}\n```") # Zeige SQL auch in der Konsole
 
     # 2. Den generierten SQL-Code an die DatabaseRequest-Funktion weitergeben
-    # NEU: Ergebnis von DatabaseRequest erfassen
     db_result = DatabaseRequest(generated_sql)
     
     # 3. Ergebnis der Datenbankabfrage an den Antwort-Agenten übergeben
