@@ -52,23 +52,24 @@ async def generate_sql_and_pass_to_request(user_question: str) -> str:
 
     print(f"\n### Generierter SQL-Code:\n```sql\n{generated_sql}\n```")
 
-    db_result = DatabaseRequest(generated_sql)
+
+    df = DatabaseRequest(generated_sql)
     
-    if isinstance(db_result, pd.DataFrame):
-        db_result_str = db_result.to_csv(index=False) 
+    if isinstance(df, pd.DataFrame):
+        df_result = df.to_csv(index=False) 
     else:
-        db_result_str = str(db_result) # Wenn es ein Fehler-String ist, einfach konvertieren
+        df_result = str(df) # Wenn es ein Fehler-String ist, einfach konvertieren
+
 
     interpreter_agent_inputprompt = f"""
-<original_frage>
-{user_question}
-</original_frage>
-<datenbank_ergebnis>
-{db_result_str}
-</datenbank_ergebnis>
-"""
+                                    <original_frage>
+                                    {user_question}
+                                    </original_frage>
+                                    <datenbank_ergebnis>
+                                    {df_result}
+                                    </datenbank_ergebnis>
+                                    """
     print(f"\n--- Übergabe an Antwort-Agenten ---")
-    print(f"Prompt für Antwort-Agenten:\n{interpreter_agent_inputprompt}")
 
     try:
         interpreter_agent_output = await Runner.run(
@@ -79,19 +80,9 @@ async def generate_sql_and_pass_to_request(user_question: str) -> str:
         print(f"FEHLER beim Antwort-Agentenlauf: {str(e)}")
         return f"FEHLER beim Generieren der Antwort durch den Agenten: {str(e)}"
 
-    # Extrahiere die finale Antwort aus den <antwort>-Tags
-    response_match = re.search(r'<antwort>(.*?)</antwort>', interpreter_agent_output.final_output, re.DOTALL)
+    final_answer = interpreter_agent_output.final_output.strip()    
+    print(f"{final_answer[:40]}...")
 
-    if not response_match:
-        print(f"FEHLER: Antwort-Agent konnte keine gültige Antwort im <antwort>-Tag finden.")
-        print(f"Antwort-Agenten-Output war:\n{interpreter_agent_output.final_output}")
-        return "FEHLER: Der Antwort-Agent konnte keine gültige Antwort generieren."
-
-    final_answer = response_match.group(1).strip()
-    print(f"\n--- Finale Antwort des Agenten ---")
-    print(final_answer)
-
-    # Rückgabe der finalen Antwort für das Gradio-UI
     return final_answer
 
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
