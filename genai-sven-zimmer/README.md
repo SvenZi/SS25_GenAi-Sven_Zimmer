@@ -1,218 +1,319 @@
-# SS25_GenAi-Sven_Zimmer 
+# AdventureBikes Analytics Platform
 
-**- Semesterabgabe: Sommersemester 2025 -**
-Einzelprojekt; Interaktive Datenbank | Sven Zimmer (ehemalig: Gruppe 2)
-Kurs:
-GenAI
+**- Semesterabgabe: Sommersemester 2025 -**  
+Einzelprojekt; Interaktive Datenbank | Sven Zimmer (ehemalig: Gruppe 2)  
+Kurs: GenAI  
 bei Jan Kirenz, Professor
 
-# AdventureBikes Datenanalyse-System
+## Projektübersicht
+
+Dieses Projekt implementiert eine intelligente Business Intelligence Plattform für AdventureBikes, die natürlichsprachliche Benutzeranfragen in SQL-Abfragen transformiert und die Ergebnisse benutzerfreundlich aufbereitet. Das System basiert auf einer mehrschichtigen Agenten-Architektur und einer SQL-Datenbank.
 
 ## Schnellstart
 
 ```bash
-# Projektinitialisierung
-uv init genai-sven-zimmer --python 3.11
+# Voraussetzungen
+- Python 3.11+
+- MSSQL ODBC Driver 17
+- OpenAI API Key
 
-# Projekt starten
+# Installation
+git clone <repository-url>
 cd genai-sven-zimmer
-uv-sync
-source .venv/bin/activate
 
+# Virtuelle Umgebung erstellen und aktivieren
+python -m venv .venv
+source .venv/bin/activate  # Unter Windows: .venv\Scripts\activate
+
+# Abhängigkeiten installieren
+pip install -r requirements.txt
+
+# Konfiguration
+# Erstellen Sie eine .env Datei mit folgenden Variablen:
+# OPENAI_API_KEY=your-api-key
+# DB_SERVER=your-server
+# DB_NAME=your-database
+# DB_USERNAME=your-username
+# DB_PASSWORD=your-password
+
+# Anwendung starten
 python app.py
 ```
 
-## Projektübersicht
-
-Dieses Projekt implementiert ein intelligentes Datenanalyse-System für AdventureBikes, das natürlichsprachliche Benutzeranfragen in SQL-Abfragen übersetzt und die Ergebnisse benutzerfreundlich aufbereitet. Das System nutzt eine Kombination aus LLM-basierten Agenten und einer SQL-Datenbank, um komplexe Geschäftsfragen zu beantworten.
-
 ## Systemarchitektur
 
-### 1. Benutzeroberfläche
+### 1. Benutzeroberfläche (`app.py`)
 
-**Komponente:** `app.py`  
-**Technologie:** Gradio Web Interface
+Die Benutzeroberfläche basiert auf Gradio und bietet eine intuitive Interaktion mit dem System.
 
-Die Benutzeroberfläche ermöglicht:
-- Eingabe von natürlichsprachlichen Fragen
-- Anzeige der generierten Antworten
-- Debug-Informationen in der Konsole
+**Hauptkomponenten:**
+- Textuelle Eingabe für Geschäftsanalysefragen
+- Spracheingabe mit automatischer Transkription
+- SQL-Code-Anzeige für Transparenz
+- Ergebnisanzeige mit formatierten Antworten
 
-### 2. Hauptkomponenten
-
-#### 2.1 Orchestrator (`generate_sql_and_pass_to_request`)
-
-**Signatur:**  
-`async def generate_sql_and_pass_to_request(user_question: str) -> str`
+**Signatur der Hauptfunktion:**
+```python
+async def generate_sql_and_pass_to_request(user_question: str) -> tuple[dict, str, str]
+```
 
 **Ablauf:**
-1. **Validierung der Umgebung**
-   - Prüft auf vorhandenen OPENAI_API_KEY
-   - Initialisiert Debug-Logging
+1. **Validierung der Eingabe**
+   * Prüft auf leere Eingaben
+   * Validiert OpenAI API-Key
+   * Logging der Benutzerfrage
 
 2. **SQL-Generierung**
-   - Übergibt die Benutzerfrage an den SQL-Generator-Agenten
-   - Extrahiert den SQL-Code aus den XML-Tags
-   - Validiert die generierte SQL-Abfrage
+   * Übergibt Frage an SQL-Generator-Agent
+   * Validiert generierten SQL-Code
+   * Prüft auf erlaubte SELECT-Statements
 
 3. **Datenbankabfrage**
-   - Führt die generierte SQL-Abfrage aus
-   - Wandelt das Ergebnis in das gewünschte Format um
+   * Führt generierte SQL-Abfrage aus
+   * Konvertiert Ergebnis in DataFrame
+   * Fehlerbehandlung bei Datenbankproblemen
 
 4. **Antwortgenerierung**
-   - Übergibt Datenbankresultat an den Antwort-Agenten
-   - Formatiert die finale Antwort in natürlicher Sprache
+   * Übergibt Ergebnis an Interpreter-Agent
+   * Formatiert finale Antwort
+   * Aktualisiert UI-Komponenten
+
+### 2. Audio-Integration (`audio_transcriber.py`)
+
+**Signatur:**
+```python
+async def transcribe_audio(audio_filepath: str) -> str
+```
+
+**Zweck:**
+Ermöglicht Spracheingaben durch Integration mit OpenAI's Whisper API.
+
+**Ablauf:**
+1. **Initialisierung**
+   * Validiert API-Key und Audio-Datei
+   * Konfiguriert Whisper-Modell
+   * Setzt Kontext-Prompts
+
+2. **Transkription**
+   * Öffnet Audio-Datei
+   * Sendet an Whisper API
+   * Empfängt Transkription
+
+3. **Fehlerbehandlung**
+   * Validiert API-Antwort
+   * Behandelt Fehler
+   * Formatiert Rückgabe
 
 ### 3. Agenten-System
 
 #### 3.1 SQL-Generator Agent (`sql_agent.py`)
 
-**Verantwortlichkeiten:**
-- Analysiert natürlichsprachliche Anfragen
-- Generiert valide SQL-Abfragen
-- Berücksichtigt das Datenbankschema
-- Markiert SQL-Code mit XML-Tags
-
-#### 3.2 Antwort-Agent (`sql_agent.py`)
-
-**Verantwortlichkeiten:**
-- Interpretiert Datenbankergebnisse
-- Generiert natürlichsprachliche Antworten
-- Formatiert Antworten benutzerfreundlich
-
-### 4. Datenbankzugriff
-
-#### 4.1 Datenbankverbindung (`_database.py`, `database_request.py`)
-
-**Klasse:** `DatabaseTool`  
-**Hauptfunktionen:**
+**Signatur:**
 ```python
-def get_database_engine() -> Engine | None
-def execute_sql_query(sql_query: str) -> pd.DataFrame | str
+def create_sql_agent() -> Agent
 ```
 
-**Konfiguration:**
-- Verwendet Environment-Variablen für Zugangsdaten
-- Unterstützt MSSQL über ODBC
-- Implementiert Connection Pooling
+**Zweck:**
+Transformiert natürlichsprachliche Anfragen in präzise SQL-Abfragen.
 
-#### 4.2 Datenmodell
+**Ablauf:**
+1. **Initialisierung**
+   * Lädt spezialisierten System-Prompt
+   * Konfiguriert GPT-4-Mini-Modell
+   * Initialisiert Agent-Tools
 
-Das System arbeitet mit einem komplexen Datenbankschema für Verkaufsdaten:
+2. **Analyse**
+   * Verarbeitet Benutzeranfrage
+   * Identifiziert Schlüsselkomponenten
+   * Validiert Anfrage-Parameter
 
-**Haupttabellen:**
-- `DataSet_Monthly_Sales`: Monatliche Verkaufsübersicht
-- `Facts_Daily_Sales`: Tägliche Verkaufstransaktionen
-- `Dim_Product`: Produktinformationen
-- `Dim_Sales_Office`: Verkaufsbüro-Details
-- `Facts_Currency_Rates`: Währungskurse
+3. **SQL-Generierung**
+   * Erstellt SQL-Template
+   * Fügt Parameter ein
+   * Validiert SQL-Syntax
 
-## Installation & Setup
+#### 3.2 Interpreter Agent (`interpreter_agent.py`)
 
-### 1. Voraussetzungen
-- Python 3.11+
-- MSSQL Server
-- ODBC-Treiber 17 für SQL Server
-
-### 2. Umgebungsvariablen
-Erstellen Sie eine `.env`-Datei mit:
-```
-DB_SERVER=server_name
-DB_NAME=database_name
-DB_USERNAME=username
-DB_PASSWORD=password
-OPENAI_API_KEY=your_api_key
-```
-
-### 3. Installation
-```bash
-# Virtual Environment erstellen und aktivieren
-python -m venv venv
-source venv/bin/activate  # oder unter Windows: venv\Scripts\activate
-
-# Abhängigkeiten installieren
-pip install -r requirements.txt
-```
-
-## Verwendung
-
-1. Starten Sie die Anwendung:
-```bash
-python app.py
-```
-
-2. Öffnen Sie die Web-Oberfläche (Standard: http://localhost:7860)
-
-3. Stellen Sie Ihre Frage in natürlicher Sprache, zum Beispiel:
-   - "Wie hoch war der Umsatz für Mountain Bikes im letzten Monat?"
-   - "Zeige mir die Top 5 Verkaufsländer nach Umsatz."
-   - "Vergleiche die Verkaufszahlen von Racing Bikes und Mountain Bikes."
-
-## Entwicklertools
-
-### Schema-Analyse (`generate_schema.py`)
-
-**Hauptfunktionen:**
+**Signatur:**
 ```python
-def generate_schema_script(engine: Engine) -> str
-def analyze_categorical_data(engine: Engine) -> str
-def analyze_date_ranges(engine: Engine) -> str
-def generate_product_catalog(engine: Engine) -> str
+def create_interpreter_agent() -> Agent
 ```
 
-Diese Tools helfen bei der:
-- Automatischen Schema-Dokumentation
-- Analyse von Datenbereichen
-- Erstellung von Produktkatalogen
+**Zweck:**
+Konvertiert technische Datenbankresultate in verständliche natürlichsprachliche Antworten.
+
+**Ablauf:**
+1. **Initialisierung**
+   * Lädt Interpreter-Prompt
+   * Konfiguriert Modell-Parameter
+   * Setzt Formatierungsregeln
+
+2. **Analyse**
+   * Verarbeitet Datenbankresultat
+   * Extrahiert relevante Daten
+   * Identifiziert Schlüsselmetriken
+
+3. **Antwortgenerierung**
+   * Formuliert natürliche Antwort
+   * Formatiert Zahlen und Daten
+   * Strukturiert Ausgabe
+
+### 4. Datenbank-Integration (`database_request.py`)
+
+**Hauptfunktion:**
+```python
+def DatabaseRequest(sql_query: str) -> pd.DataFrame | str
+```
+
+**Zweck:**
+Handhabt die sichere Ausführung von SQL-Abfragen und Ergebnisformatierung.
+
+**Ablauf:**
+1. **Verbindungsaufbau**
+   * Lädt Konfiguration aus .env
+   * Initialisiert SQLAlchemy Engine
+   * Validiert Verbindung
+   * Implementiert Connection Pooling
+
+2. **Query-Ausführung**
+   * Validiert SQL-Statement
+   * Führt Abfrage aus
+   * Konvertiert zu DataFrame
+   * Optimiert Performance
+
+3. **Fehlerbehandlung**
+   * Erkennt Verbindungsprobleme
+   * Behandelt SQL-Fehler
+   * Implementiert Timeouts
+   * Formatiert Fehlermeldungen
+
+## Datenbankschema
+
+### Haupttabellen
+
+1. **DataSet_Monthly_Sales**
+   - Monatliche Verkaufsübersicht
+   - Enthält: Revenue, Sales_Amount, Discounts
+   - Währungs- und Regionsinformationen
+   - Produktkategorisierung
+
+2. **Facts_Daily_Sales**
+   - Tägliche Verkaufstransaktionen
+   - Order- und Shipping-Dates
+   - Revenue und Discounts
+   - Verkaufsmengen
+
+3. **Dim_Product**
+   - Produktstammdaten
+   - Material_Description
+   - Product_Category
+   - Preise und Transfer_Price_EUR
+   - Shipping_Days
+
+4. **Dim_Sales_Office**
+   - Verkaufsbüro-Details
+   - Geografische Zuordnung
+   - Währungszuordnung
+   - Regionale Hierarchie
+
+### Dimensionstabellen
+
+1. **Dim_Calendar**
+   - Datumshierarchien
+   - ISO-Formate
+   - Geschäftsperioden
+   - Month/Quarter Aggregationen
+
+2. **Dim_Currency**
+   - Währungscodes
+   - Wechselkurse
+   - Formatierungsinformationen
+   - Referenzwährungen
 
 ## Fehlerbehandlung
 
-Das System implementiert eine mehrstufige Fehlerbehandlung:
+### 1. Eingabevalidierung
+- Prüft Benutzereingaben auf Vollständigkeit
+- Validiert API-Keys und Konfiguration
+- Protokolliert Eingabefehler
+- Formatvalidierung
 
-1. **Umgebungsvariablen-Validierung**
-   - Prüft auf vollständige Konfiguration
-   - Gibt klare Fehlermeldungen bei fehlenden Werten
+### 2. SQL-Generierung
+- Validiert SQL-Syntax
+- Prüft auf erlaubte Operationen
+- Behandelt Injection-Versuche
+- Loggt Generierungsprozess
 
-2. **SQL-Generierung**
-   - Validiert XML-Tags
-   - Prüft SQL-Syntax
-   - Fehlerberichte bei ungültigen Anfragen
+### 3. Datenbankzugriff
+- Connection Pool Management
+- Automatische Reconnects
+- Query Timeouts
+- Error Logging
 
-3. **Datenbankzugriff**
-   - Connection Pool Management
-   - Automatische Reconnect-Versuche
-   - Detaillierte Fehlermeldungen
+### 4. Antwortgenerierung
+- Validiert Agenten-Outputs
+- Prüft Datenformate
+- Implementiert Fallbacks
+- Fehlerbenachrichtigungen
 
-4. **Antwortgenerierung**
-   - Validierung der Agenten-Outputs
-   - Formatierungsprüfungen
-   - Fallback-Antworten bei Fehlern
+## Konfiguration
 
-## Projektstruktur
+### Umgebungsvariablen (.env)
+```plaintext
+# OpenAI Konfiguration
+OPENAI_API_KEY=your-api-key
+OPENAI_WHISPER_MODEL=whisper-1
 
+# Datenbank Konfiguration
+DB_SERVER=your-server
+DB_NAME=your-database
+DB_USERNAME=your-username
+DB_PASSWORD=your-password
+DB_PORT=1433
 ```
-genai-sven-zimmer/
-├── app.py                 # Hauptanwendung & Web-Interface
-├── _database.py          # Datenbankzugriff & Verbindungsverwaltung
-├── database_request.py   # SQL-Ausführung & Ergebnisformatierung
-├── generate_schema.py    # Schema-Analyse & Dokumentation
-├── sql_agent.py         # LLM-basierte Agenten
-└── _utils.py            # Hilfsfunktionen & Utilities
-```
 
-## Best Practices für Entwickler
+## Entwicklung
 
-1. **SQL-Generierung**
-   - Nutzen Sie vorhandene Views wenn möglich
-   - Achten Sie auf Performance bei komplexen Joins
-   - Validieren Sie generierte Abfragen
+### Voraussetzungen
+- Python 3.11+
+- MSSQL ODBC Driver 17
+- OpenAI API Zugang
+- Gradio 5.34.2+
+- SQLAlchemy 2.0.41+
 
-2. **Fehlerbehandlung**
-   - Implementieren Sie spezifische Ausnahmen
-   - Loggen Sie detaillierte Fehlerinformationen
-   - Bieten Sie hilfreiche Fehlermeldungen
+### Bibliotheken & Tools
+- `openai-agents`: KI-Agenten Framework
+- `gradio`: Web Interface
+- `sqlalchemy`: DB Access
+- `pandas`: Datenverarbeitung
+- `python-dotenv`: Konfiguration
 
-3. **Agenten-Entwicklung**
-   - Testen Sie verschiedene Prompt-Varianten
-   - Dokumentieren Sie Prompt-Strukturen
-   - Implementieren Sie Feedback-Schleifen
+### Best Practices
+
+1. **Code-Qualität**
+   - PEP 8 Konformität
+   - Type Hints
+   - Docstrings
+   - Unit Tests
+
+2. **Sicherheit**
+   - SQL-Injection Prevention
+   - API-Key Management
+   - Logging Standards
+   - Error Handling
+
+3. **Performance**
+   - Connection Pooling
+   - Query Optimization
+   - Caching Strategien
+   - Async Operations
+
+4. **Dokumentation**
+   - Code-Kommentare
+   - API-Dokumentation
+   - Changelog
+   - Setup-Guide
+
+## Lizenz
+
+Dieses Projekt ist unter der MIT-Lizenz lizenziert.

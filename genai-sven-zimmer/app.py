@@ -88,10 +88,11 @@ async def generate_sql_and_pass_to_request(user_question: str) -> tuple[dict, st
 # ----------------------- Gradio Interface (Neues Layout) -----------------------
 
 with gr.Blocks(
-    theme=gr.themes.Soft(),
+    theme=gr.themes.Glass(),
     title="AdventureBikes Business Intelligence",
-    css=".container { max-width: 1000px; margin: auto; padding: 20px; }"
+    css="* {font-family: sans-serif !important;} .container { max-width: 1000px; margin: auto; padding: 20px; }"
 ) as demo:
+    
     # Header-Bereich
     gr.Markdown(
         """
@@ -102,8 +103,9 @@ with gr.Blocks(
 
     gr.Markdown(
             """
-            > - Beispiel: "Erlöse von September bis Dezember 2021 pro Monat."
-            > - Beispiel: "Wie oft haben wir im Januar 2021 City Bikes verkauft?"
+            > - **Umsatz:** "Was war der Gesamtumsatz im letzten Jahr in Deutschland?"
+            > - **Verkaufsmenge:** "Zeige die Verkaufsmenge für Kid Bikes im Jahr 2023."
+            > - **Bestseller:** "Was waren die Renner in den Kategorien Mountain Bikes und Race Bikes im Jahr 2024?"
             """
         )
     
