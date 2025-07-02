@@ -21,12 +21,12 @@ Dieses Projekt implementiert eine intelligente Business Intelligence Plattform f
 git clone <repository-url>
 cd genai-sven-zimmer
 
-# Virtuelle Umgebung erstellen und aktivieren
-python -m venv .venv
-source .venv/bin/activate  # Unter Windows: .venv\Scripts\activate
 
 # Abhängigkeiten installieren
-pip install -r requirements.txt
+uv sync
+
+# Virtuelle Umgebung erstellen und aktivieren
+source .venv/bin/activate 
 
 # Konfiguration
 # Erstellen Sie eine .env Datei mit folgenden Variablen:
