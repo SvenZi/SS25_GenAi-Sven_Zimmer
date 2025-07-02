@@ -9,6 +9,83 @@ from sql_agent import create_sql_agent
 from interpreter_agent import create_interpreter_agent
 from database_request import DatabaseRequest
 
+custom_css = """
+/* --- Globaler Stil & Hintergrund --- */
+body {
+    font-family: 'Helvetica Neue', sans-serif !important;
+}
+
+.gradio-container {
+    width: 80% !important;
+    background-color: none !important;
+    border-radius: 5px !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2) !important;
+    margin: 40px auto !important;
+}
+
+textarea {
+    background-color: rgba(255, 255, 255, 0.5) !important;
+    border-radius: 12px !important;
+    border: none !important;
+    color: #333 !important;
+}
+
+/* --- Buttons --- */
+#submit_button {
+    background: #007bff !important;
+    color: white !important;
+    border-radius: 10px !important;
+    font-weight: bold !important;
+    align-self: center !important;
+    width: 33% !important;
+    height: 50px;
+}
+
+#audio_input button {
+     background: rgba(255, 255, 255, 0.3) !important;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    color: #333 !important;
+    border-radius: 10px !important;
+    
+    min-width: 44px !important; 
+    height: 44px !important;
+    text-align: center !important;
+}
+
+
+/* --- Labels der Komponenten anpassen --- */
+.label-wrap {
+    color: rgba(240, 240, 255, 0.9) !important;
+    font-weight: 500 !important;
+}
+
+/* --- Spezielles Styling für Überschriften --- */
+#header h1, #header h3, #examples {
+    text-align: center;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#examples {
+    text-align: left;
+    font-size: 0.75em;
+    opacity: 0.8;
+}
+
+/* Code-Block Styling */
+#sql_code_display pre {
+    background: rgba(0,0,0,0.7) !important;
+    border-radius: 10px !important;
+}
+
+#sql_code_display code {
+    color: #a7d1ff !important;
+}
+"""
+
+
 # Lädt Umgebungsvariablen
 load_dotenv()
 
@@ -85,20 +162,20 @@ async def generate_sql_and_pass_to_request(user_question: str) -> tuple[dict, st
     print(f"Finale Antwort: {final_answer[:60]}...")
     return gr.update(visible=True), generated_sql, final_answer
 
-# ----------------------- Gradio Interface (Neues Layout) -----------------------
+# ----------------------- Gradio Interface -----------------------
 
 with gr.Blocks(
-    theme=gr.themes.Glass(),
     title="AdventureBikes Business Intelligence",
-    css="* {font-family: sans-serif !important;} .container { max-width: 1000px; margin: auto; padding: 20px; }"
+    css=custom_css,
 ) as demo:
     
     # Header-Bereich
     gr.Markdown(
         """
-        # 🚲 AdventureBikes Analytics
-        ### Ihr KI-gestützter Business Intelligence Assistent
-        """
+        # 🚲 AdventureBikes Databasetool
+        ### Generative AI in der Unternehmenspraxis
+        """,
+        elem_id="header"
     )
 
     gr.Markdown(
@@ -106,14 +183,16 @@ with gr.Blocks(
             > - **Umsatz:** "Was war der Gesamtumsatz im letzten Jahr in Deutschland?"
             > - **Verkaufsmenge:** "Zeige die Verkaufsmenge für Kid Bikes im Jahr 2023."
             > - **Bestseller:** "Was waren die Renner in den Kategorien Mountain Bikes und Race Bikes im Jahr 2024?"
-            """
+            """,
+            elem_id="examples" 
         )
     
     # Haupteingabefeld für Text
     question_input = gr.Textbox(
         label="Ihre Frage zur Geschäftsanalyse",
         placeholder="z.B. Zeige mir den Umsatz für 'Mountain Bikes' im letzten Jahr.",
-        lines=3
+        lines=3,
+        elem_id="question_input" 
     )
 
     # Zeile für Audio-Eingabe (links) und SQL-Ausgabe (rechts)
@@ -122,7 +201,8 @@ with gr.Blocks(
              audio_input = gr.Audio(
                 sources=["microphone"],
                 type="filepath",
-                label="🎙️ ODER Spracheingabe nutzen"
+                label="🎙️ ODER Spracheingabe nutzen",
+                elem_id="audio_input" 
             )
         
         # Diese Spalte ist anfangs unsichtbar und wird bei Bedarf eingeblendet
@@ -131,18 +211,20 @@ with gr.Blocks(
                 label="Generierter SQL-Code",
                 language="sql",
                 interactive=False,
-                lines=8
+                lines=8,
+                elem_id="sql_code_display" 
             )
     
     # Senden-Button
-    submit_button = gr.Button("🔍 Analyse starten", variant="primary")
+    submit_button = gr.Button("🔍 Analyse starten", variant="primary", elem_id="submit_button") # HINZUGEFÜGT: ID für CSS
     
     # Finale Antwort-Box
     final_answer_display = gr.Textbox(
         label="Ergebnis der Analyse",
         lines=8,
         interactive=False,
-        show_copy_button=True
+        show_copy_button=True,
+        elem_id="final_answer_display"
     )
 
     # Footer

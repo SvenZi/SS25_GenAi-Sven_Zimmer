@@ -288,32 +288,8 @@ DB_PORT=1433
 - `pandas`: Datenverarbeitung
 - `python-dotenv`: Konfiguration
 
-### Best Practices
 
-1. **Code-Qualität**
-   - PEP 8 Konformität
-   - Type Hints
-   - Docstrings
-   - Unit Tests
-
-2. **Sicherheit**
+**Sicherheit**
    - SQL-Injection Prevention
    - API-Key Management
-   - Logging Standards
    - Error Handling
-
-3. **Performance**
-   - Connection Pooling
-   - Query Optimization
-   - Caching Strategien
-   - Async Operations
-
-4. **Dokumentation**
-   - Code-Kommentare
-   - API-Dokumentation
-   - Changelog
-   - Setup-Guide
-
-## Lizenz
-
-Dieses Projekt ist unter der MIT-Lizenz lizenziert.
