@@ -253,8 +253,8 @@ with gr.Blocks(
 
     gr.Markdown(
             """
-            > \n**Datenbank-Abfrage:** Stellen Sie eine präzise Frage (z.B. "Was war der Umsatz in Deutschland 2024?").
-            > \n**Statistische Analyse:** Geben Sie ein offenes Thema vor (z.B. "Analysiere die Verkäufe von Mountain Bikes.").
+            \n**Datenbank-Abfrage:** Stellen Sie eine präzise Frage (z.B. "Was war der Umsatz in Deutschland 2024?").
+            \n\n**Statistische Analyse:** Geben Sie ein offenes Thema vor (z.B. "Analysiere die Verkäufe von Mountain Bikes.").
             """,
             elem_id="examples" 
         )
