@@ -54,7 +54,7 @@ Die Benutzeroberfläche basiert auf Gradio und bietet eine intuitive Interaktion
 
 **Signatur der Hauptfunktion:**
 ```python
-async def generate_sql_and_pass_to_request(user_question: str) -> tuple[dict, str, str]
+async def start_simple_request(user_question: str) -> tuple[dict, str, str]
 ```
 
 **Ablauf:**

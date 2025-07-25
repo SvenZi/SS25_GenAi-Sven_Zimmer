@@ -8,6 +8,7 @@ from audio_transcriber import transcribe_audio
 from sql_agent import create_sql_agent
 from interpreter_agent import create_interpreter_agent
 from database_request import DatabaseRequest
+from analysis_agent import create_analysis_agent 
 
 custom_css = """
 /* --- Globaler Stil & Hintergrund --- */
@@ -17,11 +18,6 @@ body {
 
 .gradio-container {
     width: 80% !important;
-    background-color: none !important;
-    border-radius: 5px !important;
-    backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.18) !important;
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2) !important;
     margin: 40px auto !important;
 }
 
@@ -92,10 +88,10 @@ load_dotenv()
 # --- Agenten initialisieren ---
 sql_generator_agent = create_sql_agent()
 interpreter_agent = create_interpreter_agent()
+analysis_agent = create_analysis_agent() 
 
 
 async def transcribe_and_update_textbox(audio_filepath: str):
-    """Nimmt Audio auf, transkribiert es und gibt den Text zurück."""
     if not audio_filepath:
         return ""
     
@@ -108,13 +104,14 @@ async def transcribe_and_update_textbox(audio_filepath: str):
     
     return transcribed_text
 
-async def generate_sql_and_pass_to_request(user_question: str) -> tuple[dict, str, str]:
+async def start_simple_request(user_question: str) -> tuple[dict, str, str]:
     """
     Nimmt eine Benutzerfrage, generiert SQL, führt es aus und generiert eine finale Antwort.
     Gibt Updates für das Gradio Interface zurück (sichtbare Spalte, SQL-Code, finale Antwort).
     """
     generated_sql = ""
 
+    # Die Validierungslogik bleibt hier, da sie für beide Modi nützlich ist
     if not user_question:
         return gr.update(visible=False), "", "Bitte geben Sie zuerst eine Frage ein oder nehmen Sie eine auf."
 
@@ -122,7 +119,7 @@ async def generate_sql_and_pass_to_request(user_question: str) -> tuple[dict, st
         error_message = "FEHLER: OPENAI_API_KEY nicht gefunden. (.env)"
         return gr.update(visible=False), "", error_message
 
-    print(f"\n--- Verarbeitung Ihrer Frage gestartet ---\nBenutzerfrage: '{user_question}'")
+    print(f"\n--- Verarbeitung Ihrer Frage gestartet (Modus: Datenbank-Abfrage) ---\nBenutzerfrage: '{user_question}'")
 
     try:
         # 1. SQL-Code generieren
@@ -162,6 +159,74 @@ async def generate_sql_and_pass_to_request(user_question: str) -> tuple[dict, st
     print(f"Finale Antwort: {final_answer[:60]}...")
     return gr.update(visible=True), generated_sql, final_answer
 
+# NEU: Die komplette Logik für den neuen Analyse-Workflow
+async def start_analysis(user_question: str) -> tuple[dict, str, str]:
+    """
+    Führt den statistischen Analyse-Workflow durch:
+    1. SQL generieren, um Daten zu beschaffen
+    2. Datenbankabfrage durchführen
+    3. Analyse-Agenten mit den Daten aufrufen
+    """
+    generated_sql = ""
+
+    if not user_question:
+        return gr.update(visible=False), "", "Bitte geben Sie zuerst eine Frage für die Analyse ein."
+
+    if not os.getenv("OPENAI_API_KEY"):
+        error_message = "FEHLER: OPENAI_API_KEY nicht gefunden. (.env)"
+        return gr.update(visible=False), "", error_message
+    
+    print(f"\n--- Verarbeitung Ihrer Frage gestartet (Modus: Statistische Analyse) ---\nBenutzerfrage: '{user_question}'")
+
+    # Schritt 1: SQL generieren, um eine breite Datenbasis zu erhalten
+    try:
+        sql_prompt = f"Erstelle eine breite SQL-Abfrage, die alle relevanten Daten für die folgende Analysefrage liefert: '{user_question}'. Wähle alle Spalten aus, die nützlich sein könnten, aber beschränke die Zeilen sinnvoll, wenn möglich."
+        generated_sql_output = await Runner.run(sql_generator_agent, sql_prompt)
+        generated_sql = generated_sql_output.final_output.strip()
+
+        if not generated_sql.upper().startswith("SELECT"):
+            error_message = f"FEHLER: Der SQL-Agent hat für die Analyse eine ungültige Anweisung generiert."
+            return gr.update(visible=True), generated_sql, error_message
+
+    except Exception as e:
+        error_message = f"FEHLER beim Generieren der SQL-Abfrage für die Analyse: {str(e)}"
+        return gr.update(visible=bool(generated_sql)), generated_sql, error_message
+
+    print(f"\n### Generierter SQL-Code zur Datenbeschaffung:\n```sql\n{generated_sql}\n```")
+
+    # Schritt 2: Datenbankabfrage durchführen
+    db_result = DatabaseRequest(generated_sql)
+
+    if not isinstance(db_result, pd.DataFrame) or db_result.empty:
+        error_message = "FEHLER bei der Datenbankabfrage für die Analyse oder keine Daten gefunden. Versuchen Sie, Ihre Frage anders zu formulieren."
+        return gr.update(visible=True), generated_sql, error_message
+
+    # Schritt 3: Analyse-Agent aufrufen
+    df_csv_string = db_result.to_csv(index=False)
+    analysis_prompt = f"""<original_frage>{user_question}</original_frage><datenbank_ergebnis_csv>{df_csv_string}</datenbank_ergebnis_csv>"""
+
+    print(f"\n--- Übergabe an den Junior AI Data Analysten ---")
+    try:
+        analysis_agent_output = await Runner.run(analysis_agent, analysis_prompt)
+        final_answer = analysis_agent_output.final_output.strip()
+    except Exception as e:
+        error_message = f"FEHLER während der statistischen Analyse: {str(e)}"
+        return gr.update(visible=True), generated_sql, error_message
+    
+    print(f"Analysebericht generiert: {final_answer[:60]}...")
+    return gr.update(visible=True), generated_sql, final_answer
+
+
+# NEU: Wrapper-Funktion, die den Modus prüft und die passende Funktion aufruft
+async def handle_submit(mode: str, user_question: str) -> tuple[dict, str, str]:
+    if mode == "Datenbank-Abfrage":
+        return await start_simple_request(user_question)
+    elif mode == "Statistische Analyse":
+        return await start_analysis(user_question)
+    else:
+        return gr.update(visible=False), "", "FEHLER: Unbekannter Modus ausgewählt."
+
+
 # ----------------------- Gradio Interface -----------------------
 
 with gr.Blocks(
@@ -172,17 +237,24 @@ with gr.Blocks(
     # Header-Bereich
     gr.Markdown(
         """
-        # 🚲 AdventureBikes Databasetool
-        ### Generative AI in der Unternehmenspraxis
+        # 🚲 AdventureBikes Analytics Platform
+        ### Intelligente Business Intelligence mit GenAI
         """,
         elem_id="header"
     )
 
+    # NEU: Modus-Auswahl
+    analysis_mode_selector = gr.Radio(
+        ["Datenbank-Abfrage", "Statistische Analyse"],
+        label="Wählen Sie den gewünschten Modus",
+        value="Datenbank-Abfrage",
+        elem_id="mode_selector"
+    )
+
     gr.Markdown(
             """
-            > - **Umsatz:** "Was war der Gesamtumsatz im letzten Jahr in Deutschland?"
-            > - **Verkaufsmenge:** "Zeige die Verkaufsmenge für Kid Bikes im Jahr 2023."
-            > - **Bestseller:** "Was waren die Renner in den Kategorien Mountain Bikes und Race Bikes im Jahr 2024?"
+            > \n**Datenbank-Abfrage:** Stellen Sie eine präzise Frage (z.B. "Was war der Umsatz in Deutschland 2024?").
+            > \n**Statistische Analyse:** Geben Sie ein offenes Thema vor (z.B. "Analysiere die Verkäufe von Mountain Bikes.").
             """,
             elem_id="examples" 
         )
@@ -208,7 +280,7 @@ with gr.Blocks(
         # Diese Spalte ist anfangs unsichtbar und wird bei Bedarf eingeblendet
         with gr.Column(scale=3, visible=False) as sql_output_column:
             sql_code_display = gr.Code(
-                label="Generierter SQL-Code",
+                label="Generierter SQL-Code (zur Datenbeschaffung)",
                 language="sql",
                 interactive=False,
                 lines=8,
@@ -216,12 +288,12 @@ with gr.Blocks(
             )
     
     # Senden-Button
-    submit_button = gr.Button("🔍 Analyse starten", variant="primary", elem_id="submit_button") # HINZUGEFÜGT: ID für CSS
+    submit_button = gr.Button("🚀 Anfrage senden", variant="primary", elem_id="submit_button") 
     
     # Finale Antwort-Box
     final_answer_display = gr.Textbox(
-        label="Ergebnis der Analyse",
-        lines=8,
+        label="Ergebnis", 
+        lines=10,
         interactive=False,
         show_copy_button=True,
         elem_id="final_answer_display"
@@ -229,12 +301,12 @@ with gr.Blocks(
 
     # Footer
     gr.Markdown(
-        "*⏱️ Die Verarbeitung dauert typischerweise 10-20 Sekunden.*"
+        "*⏱️ Die Verarbeitung dauert typischerweise 10-25 Sekunden.*"
     )
 
     # --- EVENT-HANDLER ---
     
-    # 1. Audio-Aufnahme verarbeiten
+    # 1. Audio-Aufnahme verarbeiten (unverändert)
     audio_input.stop_recording(
         fn=transcribe_and_update_textbox,
         inputs=audio_input,
@@ -243,11 +315,10 @@ with gr.Blocks(
     
     # 2. Text-Eingabe verarbeiten
     submit_button.click(
-        fn=generate_sql_and_pass_to_request,
-        inputs=question_input,
+        fn=handle_submit,
+        inputs=[analysis_mode_selector, question_input],
         outputs=[sql_output_column, sql_code_display, final_answer_display]
     )
 
-# Startet die Web-Anwendung
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(share=False)
