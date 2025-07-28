@@ -4,11 +4,11 @@ from dotenv import load_dotenv
 import pandas as pd
 import os
 
-from audio_transcriber import transcribe_audio
-from sql_agent import create_sql_agent
-from interpreter_agent import create_interpreter_agent
 from database_request import DatabaseRequest
-from analysis_agent import create_analysis_agent 
+from agent_whisper import transcribe_audio
+from agent_sql import create_sql_agent
+from agent_interpreter import create_interpreter_agent
+from agent_analysis import create_analysis_agent 
 
 custom_css = """
 /* --- Globaler Stil & Hintergrund --- */
@@ -159,7 +159,6 @@ async def start_simple_request(user_question: str) -> tuple[dict, str, str]:
     print(f"Finale Antwort: {final_answer[:60]}...")
     return gr.update(visible=True), generated_sql, final_answer
 
-# NEU: Die komplette Logik für den neuen Analyse-Workflow
 async def start_analysis(user_question: str) -> tuple[dict, str, str]:
     """
     Führt den statistischen Analyse-Workflow durch:
@@ -217,7 +216,7 @@ async def start_analysis(user_question: str) -> tuple[dict, str, str]:
     return gr.update(visible=True), generated_sql, final_answer
 
 
-# NEU: Wrapper-Funktion, die den Modus prüft und die passende Funktion aufruft
+# Wrapper-Funktion, die den Modus prüft und die passende Funktion aufruft
 async def handle_submit(mode: str, user_question: str) -> tuple[dict, str, str]:
     if mode == "Datenbank-Abfrage":
         return await start_simple_request(user_question)
@@ -243,7 +242,6 @@ with gr.Blocks(
         elem_id="header"
     )
 
-    # NEU: Modus-Auswahl
     analysis_mode_selector = gr.Radio(
         ["Datenbank-Abfrage", "Statistische Analyse"],
         label="Wählen Sie den gewünschten Modus",

@@ -2,11 +2,6 @@ import os
 import openai
 
 async def transcribe_audio(audio_filepath: str) -> str:
-    """
-    Nimmt einen Dateipfad zu einer Audiodatei, transkribiert sie mit der Whisper-API
-    und gibt den erkannten Text als String zurück.
-    Im Fehlerfall wird eine Fehlermeldung zurückgegeben.
-    """
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return "FEHLER: OPENAI_API_KEY nicht gefunden. (.env)"
@@ -19,7 +14,7 @@ async def transcribe_audio(audio_filepath: str) -> str:
 
         with open(audio_filepath, "rb") as audio_file:
             transcript = await client.audio.transcriptions.create(
-                model=whisper_model, # Verwendet die konfigurierbare Variable
+                model=whisper_model,
                 file=audio_file,
                 language="de",
                 prompt="AdventureBikes, Mountain Bikes, City Bikes, Race Bikes, Trekking Bikes, Kid Bikes, Umsatz, Verkaufsmenge, T-SQL, Deutschland, Schweiz, Frankreich"

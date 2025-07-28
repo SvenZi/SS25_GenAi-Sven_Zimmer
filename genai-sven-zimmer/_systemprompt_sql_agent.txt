@@ -65,7 +65,7 @@ FROM
 WHERE
     fds.ID_Order_Date = '2025-06-01';
 ---
-**Beispiel 3 (NEU): Komplexe Anfrage mit mehreren Filtern und intelligenter Aggregation**
+**Beispiel 3: Komplexe Anfrage mit mehreren Filtern und intelligenter Aggregation**
 <frage>Zeige mir den Umsatz und die Verkaufsmenge für die Renner, also Mountain Bikes und Race Bikes, in Deutschland im ersten Halbjahr 2024.</frage>
 SELECT
     ISNULL(dms.Calendar_Month_ISO, 'Gesamt 2024 H1') AS Zeitraum,
