@@ -33,7 +33,7 @@ source .venv/bin/activate
 # OPENAI_API_KEY=your-api-key
 # DB_SERVER=your-server
 # DB_NAME=your-database
-# DB_USERNAME=your-username
+# DB_USER=your-username
 # DB_PASSWORD=your-password
 
 # Anwendung starten
@@ -267,7 +267,7 @@ OPENAI_WHISPER_MODEL=whisper-1
 # Datenbank Konfiguration
 DB_SERVER=your-server
 DB_NAME=your-database
-DB_USERNAME=your-username
+DB_USER=your-username
 DB_PASSWORD=your-password
 DB_PORT=1433
 ```

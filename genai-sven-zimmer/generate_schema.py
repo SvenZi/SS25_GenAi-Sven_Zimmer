@@ -13,7 +13,7 @@
 #         # GEÄNDERT: Wir lesen jetzt die Variablennamen aus IHRER .env-Datei
 #         server = os.getenv("DB_SERVER")
 #         database = os.getenv("DB_NAME")
-#         username = os.getenv("DB_USERNAME")
+#         username = os.getenv("DB_USER")
 #         password = os.getenv("DB_PASSWORD")
 
 #         # HINWEIS: Der Treiberpfad ist jetzt fest im Code hinterlegt, da er in der .env-Datei fehlt.
@@ -21,7 +21,7 @@
 
 #         # Angepasste Überprüfung der geladenen Variablen
 #         if not all([server, database, username, password]):
-#             print("❌ Fehler: Eine der Umgebungsvariablen (DB_SERVER, DB_NAME, DB_USERNAME, DB_PASSWORD) fehlt oder ist leer.")
+#             print("❌ Fehler: Eine der Umgebungsvariablen (DB_SERVER, DB_NAME, DB_USER, DB_PASSWORD) fehlt oder ist leer.")
 #             exit()
 
 #         print(f"Versuche, Verbindung herzustellen zu Host: {server}...")
@@ -90,12 +90,12 @@ def get_db_engine() -> Engine:
     try:
         server = os.getenv("DB_SERVER")
         database = os.getenv("DB_NAME")
-        username = os.getenv("DB_USERNAME")
+        username = os.getenv("DB_USER")
         password = os.getenv("DB_PASSWORD")
         driver_path = "/opt/homebrew/lib/libmsodbcsql.17.dylib"
 
         if not all([server, database, username, password]):
-            print("❌ Fehler: Eine der Umgebungsvariablen (DB_SERVER, DB_NAME, DB_USERNAME, DB_PASSWORD) fehlt oder ist leer.")
+            print("❌ Fehler: Eine der Umgebungsvariablen (DB_SERVER, DB_NAME, DB_USER, DB_PASSWORD) fehlt oder ist leer.")
             exit()
 
         print(f"Versuche, Verbindung herzustellen zu Host: {server}...")

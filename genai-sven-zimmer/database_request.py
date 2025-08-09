@@ -15,12 +15,12 @@ def _get_db_engine() -> Engine | None:
     try:
         server = os.getenv("DB_SERVER")
         database = os.getenv("DB_NAME")
-        username = os.getenv("DB_USERNAME")
+        username = os.getenv("DB_USER")
         password = os.getenv("DB_PASSWORD")
         driver_path = "/opt/homebrew/lib/libmsodbcsql.17.dylib"
 
         if not all([server, database, username, password]):
-            print("FEHLER: Eine der Umgebungsvariablen (DB_SERVER, DB_NAME, DB_USERNAME, DB_PASSWORD) fehlt oder ist leer.")
+            print("FEHLER: Eine der Umgebungsvariablen (DB_SERVER, DB_NAME, DB_USER, DB_PASSWORD) fehlt oder ist leer.")
             return None
 
         encoded_password = urllib.parse.quote_plus(password or "")
